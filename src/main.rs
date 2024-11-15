@@ -71,13 +71,13 @@ fn main() -> Result<()> {
 
     match std::env::args().nth(1).unwrap().as_str() {
         "tree" => {
-            let (interpreter, mut env) = tree::prepare(&syms);
-            run(sym, |expr| interpreter.eval(&expr, &mut env))
+            let interpreter = tree::Interpreter::new(&syms);
+            run(sym, |expr| interpreter.eval(&expr))
         }
 
         "closure" => {
-            let (interpreter, mut env) = closure::prepare(&syms)?;
-            run(sym, |expr| interpreter.eval(&expr, &mut env))
+            let interpreter = closure::Interpreter::new(&syms);
+            run(sym, |expr| interpreter.eval(&expr))
         }
 
         _ => Err(eyre!("Invalid mode")),

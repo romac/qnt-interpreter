@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 use fxhash::FxHashMap;
@@ -11,7 +9,7 @@ type Closure<'a> = Box<dyn Fn(&mut Env) -> Result<Value> + 'a>;
 #[derive(Default)]
 pub struct Env<'a> {
     values: FxHashMap<Sym, Value>,
-    cache: FxHashMap<Sym, Rc<Closure<'a>>>,
+    cache: FxHashMap<Sym, Closure<'a>>,
     parent: Option<&'a Env<'a>>,
 }
 
@@ -143,21 +141,17 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
+    pub fn eval(&self, expr: &Expr) -> Result<Value> {
         let closure = self.compile(expr)?;
-        closure(env)
+
+        let mut env = Env::new();
+
+        for def in self.symbols.defs.values() {
+            let sym = def.sym;
+            let closure = self.compile(&def.body)?;
+            env.cache.insert(sym, closure);
+        }
+
+        closure(&mut env)
     }
-}
-
-pub fn prepare(syms: &SymbolTable) -> Result<(Interpreter<'_>, Env<'_>)> {
-    let interpreter = Interpreter::new(syms);
-    let mut env = Env::new();
-
-    for def in interpreter.symbols.defs.values() {
-        let sym = def.sym;
-        let closure = interpreter.compile(&def.body)?;
-        env.cache.insert(sym, Rc::new(closure));
-    }
-
-    Ok((interpreter, env))
 }

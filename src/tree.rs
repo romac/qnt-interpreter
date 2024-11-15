@@ -40,10 +40,10 @@ pub struct Interpreter<'a> {
 
 impl<'a> Interpreter<'a> {
     pub fn new(table: &'a SymbolTable) -> Self {
-        Interpreter { table }
+        Self { table }
     }
 
-    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
+    pub fn _eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
         match expr {
             Expr::Lit(lit) => Ok(match lit {
                 Lit::Int(n) => Value::Int(*n),
@@ -56,8 +56,8 @@ impl<'a> Interpreter<'a> {
                 .ok_or_else(|| eyre!("Undefined variable: {}", var.sym)),
 
             Expr::BinOp(op, left, right) => {
-                let lhs = self.eval(left, env)?;
-                let rhs = self.eval(right, env)?;
+                let lhs = self._eval(left, env)?;
+                let rhs = self._eval(right, env)?;
 
                 match (op, lhs, rhs) {
                     (BinOp::Add, Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
@@ -84,36 +84,36 @@ impl<'a> Interpreter<'a> {
 
                 // Evaluate arguments and bind them to parameters
                 for (param, arg) in def.args.iter().zip(args) {
-                    let value = self.eval(arg, env)?;
+                    let value = self._eval(arg, env)?;
                     values.insert(*param, value);
                 }
 
                 let mut new_env = Env::with_parent(env, values);
 
                 // Evaluate function body in new environment
-                self.eval(&def.body, &mut new_env)
+                self._eval(&def.body, &mut new_env)
             }
 
             Expr::If(cond, then_expr, else_expr) => {
-                let cond_val = self.eval(cond, env)?;
+                let cond_val = self._eval(cond, env)?;
                 match cond_val {
-                    Value::Bool(true) => self.eval(then_expr, env),
-                    Value::Bool(false) => self.eval(else_expr, env),
+                    Value::Bool(true) => self._eval(then_expr, env),
+                    Value::Bool(false) => self._eval(else_expr, env),
                     _ => Err(eyre!("Condition must evaluate to a boolean")),
                 }
             }
 
             Expr::While(cond, body) => {
                 let mut result = Value::Int(0);
-                while self.eval(cond, env)?.as_bool() {
-                    result = self.eval(body, env)?;
+                while self._eval(cond, env)?.as_bool() {
+                    result = self._eval(body, env)?;
                 }
                 Ok(result)
             }
         }
     }
-}
 
-pub fn prepare(syms: &SymbolTable) -> (Interpreter<'_>, Env<'static>) {
-    (Interpreter::new(syms), Env::new())
+    pub fn eval(&self, expr: &Expr) -> Result<Value> {
+        self._eval(expr, &mut Env::new())
+    }
 }
