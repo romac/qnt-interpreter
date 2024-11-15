@@ -30,6 +30,16 @@ impl<'a> Env<'a> {
         }
     }
 
+    pub fn with(&self, name: Sym, value: Value) -> Env<'_> {
+        let mut env = Env {
+            values: FxHashMap::default(),
+            cache: FxHashMap::default(),
+            parent: Some(self),
+        };
+        env.values.insert(name, value);
+        env
+    }
+
     pub fn value(&self, name: &Sym) -> Option<&Value> {
         match self.values.get(name) {
             Some(value) => Some(value),
@@ -73,6 +83,31 @@ impl<'a> Interpreter<'a> {
                     env.value(&sym)
                         .cloned()
                         .ok_or_else(|| eyre!("Undefined variable: {sym}"))
+                }))
+            }
+
+            Expr::Let(sym, value, body) => {
+                let value = self.compile(value)?;
+                let body = self.compile(body)?;
+
+                Ok(Box::new(move |env| {
+                    let value = value(env)?;
+                    body(&mut env.with(*sym, value))
+                }))
+            }
+
+            Expr::Block(exprs) => {
+                let exprs = exprs
+                    .iter()
+                    .map(|expr| self.compile(expr))
+                    .collect::<Result<Vec<_>>>()?;
+
+                Ok(Box::new(move |env| {
+                    let mut result = Value::Int(0);
+                    for expr in &exprs {
+                        result = expr(env)?;
+                    }
+                    Ok(result)
                 }))
             }
 

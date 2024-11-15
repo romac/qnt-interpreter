@@ -22,6 +22,15 @@ impl<'a> Env<'a> {
         }
     }
 
+    pub fn with(&mut self, name: Sym, value: Value) -> Env<'_> {
+        let mut env = Env {
+            values: FxHashMap::default(),
+            parent: Some(self),
+        };
+        env.define(name, value);
+        env
+    }
+
     pub fn define(&mut self, name: Sym, value: Value) {
         self.values.insert(name, value);
     }
@@ -51,6 +60,19 @@ impl<'a> Interpreter<'a> {
                 .get(&var.sym)
                 .cloned()
                 .ok_or_else(|| eyre!("Undefined variable: {}", var.sym)),
+
+            Expr::Let(sym, value, body) => {
+                let value = self.eval_in(value, env)?;
+                self.eval_in(body, &mut env.with(*sym, value))
+            }
+
+            Expr::Block(exprs) => {
+                let mut result = Value::Undefined;
+                for expr in exprs {
+                    result = self.eval_in(expr, env)?;
+                }
+                Ok(result)
+            }
 
             Expr::BinOp(op, left, right) => {
                 let lhs = self.eval_in(left, env)?;
@@ -96,7 +118,7 @@ impl<'a> Interpreter<'a> {
             }
 
             Expr::While(cond, body) => {
-                let mut result = Value::Int(0);
+                let mut result = Value::Undefined;
                 while self.eval_in(cond, env)?.as_bool()? {
                     result = self.eval_in(body, env)?;
                 }

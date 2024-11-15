@@ -72,10 +72,12 @@ impl BinOp {
 pub enum Expr {
     Var(Var),
     Lit(Lit),
+    Let(Sym, Box<Expr>, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
     Call(Sym, Vec<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     While(Box<Expr>, Box<Expr>),
+    Block(Vec<Expr>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -95,6 +97,7 @@ impl Lit {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
+    Undefined,
     Int(i64),
     Bool(bool),
 }
