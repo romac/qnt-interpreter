@@ -1,5 +1,7 @@
 use std::fmt;
 
+use color_eyre::eyre::bail;
+use color_eyre::Result;
 use fxhash::FxHashMap;
 
 pub use crate::str::Str;
@@ -54,6 +56,18 @@ pub enum BinOp {
     Lt,
 }
 
+impl BinOp {
+    pub fn to_fn(self) -> fn(Value, Value) -> Result<Value> {
+        match self {
+            BinOp::Add => |a, b| Ok(Value::Int(a.as_int()? + b.as_int()?)),
+            BinOp::Sub => |a, b| Ok(Value::Int(a.as_int()? - b.as_int()?)),
+            BinOp::Mul => |a, b| Ok(Value::Int(a.as_int()? * b.as_int()?)),
+            BinOp::Lt => |a, b| Ok(Value::Bool(a.as_int()? < b.as_int()?)),
+            BinOp::Eq => |a, b| Ok(Value::Bool(a == b)),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expr {
     Var(Var),
@@ -70,6 +84,15 @@ pub enum Lit {
     Bool(bool),
 }
 
+impl Lit {
+    pub fn to_value(self) -> Value {
+        match self {
+            Lit::Int(n) => Value::Int(n),
+            Lit::Bool(b) => Value::Bool(b),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     Int(i64),
@@ -77,17 +100,17 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_int(&self) -> i64 {
+    pub fn as_int(&self) -> Result<i64> {
         match self {
-            Value::Int(n) => *n,
-            _ => panic!("Expected integer"),
+            Value::Int(n) => Ok(*n),
+            _ => bail!("Expected integer"),
         }
     }
 
-    pub fn as_bool(&self) -> bool {
+    pub fn as_bool(&self) -> Result<bool> {
         match self {
-            Value::Bool(b) => *b,
-            _ => panic!("Expected boolean"),
+            Value::Bool(b) => Ok(*b),
+            _ => bail!("Expected boolean"),
         }
     }
 }

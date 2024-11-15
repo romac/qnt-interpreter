@@ -22,11 +22,11 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub fn with_parent(parent: &'a Env, values: FxHashMap<Sym, Value>) -> Self {
+    pub fn nested(&self, values: FxHashMap<Sym, Value>) -> Env<'_> {
         Env {
             values,
             cache: FxHashMap::default(),
-            parent: Some(parent),
+            parent: Some(self),
         }
     }
 
@@ -79,19 +79,12 @@ impl<'a> Interpreter<'a> {
             Expr::BinOp(op, lhs, rhs) => {
                 let lhs = self.compile(lhs)?;
                 let rhs = self.compile(rhs)?;
-
-                let apply = match op {
-                    BinOp::Add => |a: Value, b: Value| Value::Int(a.as_int() + b.as_int()),
-                    BinOp::Sub => |a: Value, b: Value| Value::Int(a.as_int() - b.as_int()),
-                    BinOp::Mul => |a: Value, b: Value| Value::Int(a.as_int() * b.as_int()),
-                    BinOp::Lt => |a: Value, b: Value| Value::Bool(a.as_int() < b.as_int()),
-                    BinOp::Eq => |a: Value, b: Value| Value::Bool(a == b),
-                };
+                let apply = op.to_fn();
 
                 Ok(Box::new(move |env| {
                     let l = lhs(env)?;
                     let r = rhs(env)?;
-                    Ok(apply(l, r))
+                    apply(l, r)
                 }))
             }
 
@@ -113,7 +106,7 @@ impl<'a> Interpreter<'a> {
 
                 Ok(Box::new(move |env| {
                     let mut result = Value::Int(0);
-                    while cond(env)?.as_bool() {
+                    while cond(env)?.as_bool()? {
                         result = body(env)?;
                     }
                     Ok(result)
@@ -121,7 +114,12 @@ impl<'a> Interpreter<'a> {
             }
 
             Expr::Call(sym, args) => {
-                let def = self.symbols.defs.get(sym).unwrap();
+                let def = self
+                    .symbols
+                    .defs
+                    .get(sym)
+                    .ok_or_else(|| eyre!("Undefined function: {sym}"))?;
+
                 let args = args
                     .iter()
                     .map(|arg| self.compile(arg))
@@ -133,9 +131,11 @@ impl<'a> Interpreter<'a> {
                         values.insert(*param, arg(env)?);
                     }
 
-                    let mut call_env = Env::with_parent(env, values);
-                    let body = env.cached(sym).unwrap();
-                    body(&mut call_env)
+                    let body = env
+                        .cached(sym)
+                        .ok_or_else(|| eyre!("Cached function not found: {sym}"))?;
+
+                    body(&mut env.nested(values))
                 }))
             }
         }

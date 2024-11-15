@@ -15,10 +15,10 @@ impl<'a> Env<'a> {
         Self::default()
     }
 
-    pub fn with_parent(parent: &'a Env, values: FxHashMap<Sym, Value>) -> Self {
+    pub fn nested(&self, values: FxHashMap<Sym, Value>) -> Env<'_> {
         Env {
             values,
-            parent: Some(parent),
+            parent: Some(self),
         }
     }
 
@@ -43,12 +43,9 @@ impl<'a> Interpreter<'a> {
         Self { table }
     }
 
-    pub fn _eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
+    pub fn eval_in(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
         match expr {
-            Expr::Lit(lit) => Ok(match lit {
-                Lit::Int(n) => Value::Int(*n),
-                Lit::Bool(b) => Value::Bool(*b),
-            }),
+            Expr::Lit(lit) => Ok(lit.to_value()),
 
             Expr::Var(var) => env
                 .get(&var.sym)
@@ -56,17 +53,11 @@ impl<'a> Interpreter<'a> {
                 .ok_or_else(|| eyre!("Undefined variable: {}", var.sym)),
 
             Expr::BinOp(op, left, right) => {
-                let lhs = self._eval(left, env)?;
-                let rhs = self._eval(right, env)?;
+                let lhs = self.eval_in(left, env)?;
+                let rhs = self.eval_in(right, env)?;
+                let apply = op.to_fn();
 
-                match (op, lhs, rhs) {
-                    (BinOp::Add, Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
-                    (BinOp::Sub, Value::Int(a), Value::Int(b)) => Ok(Value::Int(a - b)),
-                    (BinOp::Mul, Value::Int(a), Value::Int(b)) => Ok(Value::Int(a * b)),
-                    (BinOp::Lt, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a < b)),
-                    (BinOp::Eq, a, b) => Ok(Value::Bool(a == b)),
-                    _ => Err(eyre!("Invalid operation {op:?}")),
-                }
+                apply(lhs, rhs)
             }
 
             Expr::Call(sym, args) => {
@@ -77,36 +68,37 @@ impl<'a> Interpreter<'a> {
                     .ok_or_else(|| eyre!("Undefined function: {sym}"))?;
 
                 if args.len() != def.args.len() {
-                    return Err(eyre!("Wrong number of arguments for {sym}"));
+                    return Err(eyre!(
+                        "Wrong number of arguments for {sym}: found {}, expected {}",
+                        args.len(),
+                        def.args.len()
+                    ));
                 }
 
-                let mut values = FxHashMap::default();
-
                 // Evaluate arguments and bind them to parameters
+                let mut values = FxHashMap::default();
                 for (param, arg) in def.args.iter().zip(args) {
-                    let value = self._eval(arg, env)?;
+                    let value = self.eval_in(arg, env)?;
                     values.insert(*param, value);
                 }
 
-                let mut new_env = Env::with_parent(env, values);
-
                 // Evaluate function body in new environment
-                self._eval(&def.body, &mut new_env)
+                self.eval_in(&def.body, &mut env.nested(values))
             }
 
-            Expr::If(cond, then_expr, else_expr) => {
-                let cond_val = self._eval(cond, env)?;
-                match cond_val {
-                    Value::Bool(true) => self._eval(then_expr, env),
-                    Value::Bool(false) => self._eval(else_expr, env),
+            Expr::If(cnd, thn, els) => {
+                let cnd = self.eval_in(cnd, env)?;
+                match cnd {
+                    Value::Bool(true) => self.eval_in(thn, env),
+                    Value::Bool(false) => self.eval_in(els, env),
                     _ => Err(eyre!("Condition must evaluate to a boolean")),
                 }
             }
 
             Expr::While(cond, body) => {
                 let mut result = Value::Int(0);
-                while self._eval(cond, env)?.as_bool() {
-                    result = self._eval(body, env)?;
+                while self.eval_in(cond, env)?.as_bool()? {
+                    result = self.eval_in(body, env)?;
                 }
                 Ok(result)
             }
@@ -114,6 +106,6 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<Value> {
-        self._eval(expr, &mut Env::new())
+        self.eval_in(expr, &mut Env::new())
     }
 }
