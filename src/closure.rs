@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use color_eyre::Result;
 use fxhash::FxHashMap;
 
 use crate::ast::*;
@@ -45,34 +46,36 @@ impl<'a> Env<'a> {
     }
 }
 
-#[derive(Default)]
-pub struct Interpreter {
-    symbols: SymbolTable,
+pub struct Interpreter<'a> {
+    symbols: &'a SymbolTable,
 }
 
-impl Interpreter {
-    pub fn new(symbols: SymbolTable) -> Self {
+impl<'a> Interpreter<'a> {
+    pub fn new(symbols: &'a SymbolTable) -> Self {
         Self { symbols }
     }
 
-    pub fn compile(&self, expr: Expr) -> Closure {
+    pub fn compile<'e>(&self, expr: &'e Expr) -> Result<Closure<'e>>
+    where
+        'a: 'e,
+    {
         match expr {
             Expr::Lit(lit) => {
                 let val = match lit {
-                    Lit::Int(n) => Value::Int(n),
-                    Lit::Bool(b) => Value::Bool(b),
+                    Lit::Int(n) => Value::Int(*n),
+                    Lit::Bool(b) => Value::Bool(*b),
                 };
-                Box::new(move |_| val.clone())
+                Ok(Box::new(move |_| val.clone()))
             }
 
             Expr::Var(var) => {
                 let sym = var.sym;
-                Box::new(move |env| env.value(&sym).unwrap().clone())
+                Ok(Box::new(move |env| env.value(&sym).unwrap().clone()))
             }
 
             Expr::BinOp(op, lhs, rhs) => {
-                let lhs = self.compile(*lhs);
-                let rhs = self.compile(*rhs);
+                let lhs = self.compile(lhs)?;
+                let rhs = self.compile(rhs)?;
 
                 let apply = match op {
                     BinOp::Add => |a: Value, b: Value| Value::Int(a.as_int() + b.as_int()),
@@ -82,89 +85,74 @@ impl Interpreter {
                     BinOp::Eq => |a: Value, b: Value| Value::Bool(a == b),
                 };
 
-                Box::new(move |env| {
+                Ok(Box::new(move |env| {
                     let l = lhs(env);
                     let r = rhs(env);
                     apply(l, r)
-                })
+                }))
             }
 
-            Expr::If(cond, then_expr, else_expr) => {
-                let cond = self.compile(*cond);
-                let then_expr = self.compile(*then_expr);
-                let else_expr = self.compile(*else_expr);
-                Box::new(move |env| match cond(env) {
-                    Value::Bool(true) => then_expr(env),
-                    Value::Bool(false) => else_expr(env),
+            Expr::If(cnd, thn, els) => {
+                let cnd = self.compile(cnd)?;
+                let thn = self.compile(thn)?;
+                let els = self.compile(els)?;
+
+                Ok(Box::new(move |env| match cnd(env) {
+                    Value::Bool(true) => thn(env),
+                    Value::Bool(false) => els(env),
                     _ => panic!("Condition must be boolean"),
-                })
+                }))
             }
 
             Expr::While(cond, body) => {
-                let cond = self.compile(*cond);
-                let body = self.compile(*body);
-                Box::new(move |env| {
+                let cond = self.compile(cond)?;
+                let body = self.compile(body)?;
+
+                Ok(Box::new(move |env| {
                     let mut result = Value::Int(0);
                     while cond(env).as_bool() {
                         result = body(env);
                     }
                     result
-                })
+                }))
             }
 
             Expr::Call(sym, args) => {
-                let def = self.symbols.defs.get(&sym).unwrap().clone();
-                let compiled_args: Vec<_> = args.into_iter().map(|arg| self.compile(arg)).collect();
+                let def = self.symbols.defs.get(sym).unwrap();
+                let args = args
+                    .iter()
+                    .map(|arg| self.compile(arg))
+                    .collect::<Result<Vec<_>>>()?;
 
-                // let syms = self.symbols.clone();
-                // let body = def.body.clone();
-
-                Box::new(move |env| {
+                Ok(Box::new(move |env| {
                     let mut values = FxHashMap::default();
-                    for (param, arg) in def.args.iter().zip(&compiled_args) {
+                    for (param, arg) in def.args.iter().zip(&args) {
                         values.insert(*param, arg(env));
                     }
 
                     let mut call_env = Env::with_parent(env, values);
-                    let body = env.cached(&sym).unwrap();
+                    let body = env.cached(sym).unwrap();
                     body(&mut call_env)
-                })
+                }))
             }
         }
     }
 
-    pub fn eval(&self, expr: Expr) -> Value {
-        let closure = self.compile(expr);
-        let mut env = Env::default();
-
-        for def in self.symbols.defs.values() {
-            let sym = def.sym;
-            let closure = self.compile(def.body.clone());
-            env.cache.insert(sym, Rc::new(closure));
-        }
-
-        closure(&mut env)
+    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
+        let closure = self.compile(expr)?;
+        Ok(closure(env))
     }
 }
 
-pub fn eval() -> Result<(), String> {
-    let fib = crate::fib();
-    let sym = fib.sym;
+pub fn prepare(syms: &SymbolTable) -> Result<(Interpreter<'_>, Env<'_>)> {
+    let interpreter = Interpreter::new(syms);
+    let mut env = Env::new();
 
-    let mut symbol_table = SymbolTable::default();
-    symbol_table.defs.insert(sym, fib);
-
-    let interpreter = Interpreter::new(symbol_table);
-
-    // Test fibonacci numbers 1 through 20
-    for n in 1..=27 {
-        let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
-
-        match interpreter.eval(expr) {
-            Value::Int(result) => println!("fib({n}) = {result}"),
-            other => println!("Unexpected result type: {other:?}"),
-        }
+    for def in interpreter.symbols.defs.values() {
+        let sym = def.sym;
+        let closure = interpreter.compile(&def.body)?;
+        env.cache.insert(sym, Rc::new(closure));
     }
 
-    Ok(())
+    Ok((interpreter, env))
 }

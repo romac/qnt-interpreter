@@ -1,8 +1,10 @@
+use color_eyre::eyre::eyre;
+use color_eyre::Result;
 use fxhash::FxHashMap;
 
-use crate::{ast::*, fib};
+use crate::ast::*;
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Env<'a> {
     values: FxHashMap<Sym, Value>,
     parent: Option<&'a Env<'a>>,
@@ -10,10 +12,7 @@ pub struct Env<'a> {
 
 impl<'a> Env<'a> {
     pub fn new() -> Self {
-        Self {
-            values: FxHashMap::default(),
-            parent: None,
-        }
+        Self::default()
     }
 
     pub fn with_parent(parent: &'a Env, values: FxHashMap<Sym, Value>) -> Self {
@@ -35,16 +34,16 @@ impl<'a> Env<'a> {
     }
 }
 
-pub struct Interpreter {
-    table: SymbolTable,
+pub struct Interpreter<'a> {
+    table: &'a SymbolTable,
 }
 
-impl Interpreter {
-    pub fn new(table: SymbolTable) -> Self {
+impl<'a> Interpreter<'a> {
+    pub fn new(table: &'a SymbolTable) -> Self {
         Interpreter { table }
     }
 
-    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value, String> {
+    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
         match expr {
             Expr::Lit(lit) => Ok(match lit {
                 Lit::Int(n) => Value::Int(*n),
@@ -54,7 +53,7 @@ impl Interpreter {
             Expr::Var(var) => env
                 .get(&var.sym)
                 .cloned()
-                .ok_or_else(|| format!("Undefined variable: {}", var.sym)),
+                .ok_or_else(|| eyre!("Undefined variable: {}", var.sym)),
 
             Expr::BinOp(op, left, right) => {
                 let lhs = self.eval(left, env)?;
@@ -66,7 +65,7 @@ impl Interpreter {
                     (BinOp::Mul, Value::Int(a), Value::Int(b)) => Ok(Value::Int(a * b)),
                     (BinOp::Lt, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a < b)),
                     (BinOp::Eq, a, b) => Ok(Value::Bool(a == b)),
-                    _ => Err(format!("Invalid operation {op:?}")),
+                    _ => Err(eyre!("Invalid operation {op:?}")),
                 }
             }
 
@@ -75,10 +74,10 @@ impl Interpreter {
                     .table
                     .defs
                     .get(sym)
-                    .ok_or_else(|| format!("Undefined function: {sym}"))?;
+                    .ok_or_else(|| eyre!("Undefined function: {sym}"))?;
 
                 if args.len() != def.args.len() {
-                    return Err(format!("Wrong number of arguments for {sym}"));
+                    return Err(eyre!("Wrong number of arguments for {sym}"));
                 }
 
                 let mut values = FxHashMap::default();
@@ -100,7 +99,7 @@ impl Interpreter {
                 match cond_val {
                     Value::Bool(true) => self.eval(then_expr, env),
                     Value::Bool(false) => self.eval(else_expr, env),
-                    _ => Err("Condition must evaluate to a boolean".to_string()),
+                    _ => Err(eyre!("Condition must evaluate to a boolean")),
                 }
             }
 
@@ -115,26 +114,6 @@ impl Interpreter {
     }
 }
 
-pub fn eval() -> Result<(), String> {
-    let fib = fib();
-    let sym = fib.sym;
-
-    let mut symbol_table = SymbolTable::default();
-    symbol_table.defs.insert(sym, fib);
-
-    let interpreter = Interpreter::new(symbol_table);
-    let mut env = Env::new();
-
-    // Test fibonacci numbers 1 through 20
-    for n in 1..=27 {
-        let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
-
-        match interpreter.eval(&expr, &mut env) {
-            Ok(Value::Int(result)) => println!("fib({n}) = {result}"),
-            Ok(other) => println!("Unexpected result type: {other:?}"),
-            Err(e) => println!("Error: {e}"),
-        }
-    }
-
-    Ok(())
+pub fn prepare(syms: &SymbolTable) -> (Interpreter<'_>, Env<'static>) {
+    (Interpreter::new(syms), Env::new())
 }

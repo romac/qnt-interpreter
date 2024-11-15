@@ -5,6 +5,9 @@ mod closure;
 mod str;
 mod tree;
 
+use color_eyre::eyre::eyre;
+use color_eyre::Result;
+
 use crate::ast::*;
 
 fn fib() -> Def {
@@ -55,23 +58,42 @@ fn fib() -> Def {
     }
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<()> {
     if std::env::args().len() != 2 {
-        return Err("Usage: cargo run <tree|closure|bytecode>".into());
+        return Err(eyre!("Usage: cargo run <tree|closure|bytecode>"));
     }
+
+    let fib = fib();
+    let sym = fib.sym;
+
+    let mut syms = SymbolTable::default();
+    syms.defs.insert(sym, fib);
 
     match std::env::args().nth(1).unwrap().as_str() {
-        "tree" => tree::eval(),
-
-        "closure" => closure::eval(),
-
-        "bytecode" => {
-            Ok(())
-            // let def = fib();
-            // let closure = def.to_closure();
-            // let bytecode = closure.to_bytecode();
-            // println!("{:?}", bytecode);
+        "tree" => {
+            let (interpreter, mut env) = tree::prepare(&syms);
+            run(sym, |expr| interpreter.eval(&expr, &mut env))
         }
-        _ => Err("Invalid mode".into()),
+
+        "closure" => {
+            let (interpreter, mut env) = closure::prepare(&syms)?;
+            run(sym, |expr| interpreter.eval(&expr, &mut env))
+        }
+
+        _ => Err(eyre!("Invalid mode")),
     }
+}
+
+fn run(sym: Sym, mut eval: impl FnMut(Expr) -> Result<Value>) -> Result<()> {
+    // Test fibonacci numbers 1 through 27
+    for n in 1..=27 {
+        let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
+
+        match eval(expr)? {
+            Value::Int(result) => println!("fib({n}) = {result}"),
+            _ => return Err(eyre!("Expected integer result")),
+        }
+    }
+
+    Ok(())
 }
