@@ -1,11 +1,12 @@
 use std::rc::Rc;
 
+use color_eyre::eyre::eyre;
 use color_eyre::Result;
 use fxhash::FxHashMap;
 
 use crate::ast::*;
 
-type Closure<'a> = Box<dyn Fn(&mut Env) -> Value + 'a>;
+type Closure<'a> = Box<dyn Fn(&mut Env) -> Result<Value> + 'a>;
 
 #[derive(Default)]
 pub struct Env<'a> {
@@ -65,12 +66,16 @@ impl<'a> Interpreter<'a> {
                     Lit::Int(n) => Value::Int(*n),
                     Lit::Bool(b) => Value::Bool(*b),
                 };
-                Ok(Box::new(move |_| val.clone()))
+                Ok(Box::new(move |_| Ok(val.clone())))
             }
 
             Expr::Var(var) => {
                 let sym = var.sym;
-                Ok(Box::new(move |env| env.value(&sym).unwrap().clone()))
+                Ok(Box::new(move |env| {
+                    env.value(&sym)
+                        .cloned()
+                        .ok_or_else(|| eyre!("Undefined variable: {sym}"))
+                }))
             }
 
             Expr::BinOp(op, lhs, rhs) => {
@@ -86,9 +91,9 @@ impl<'a> Interpreter<'a> {
                 };
 
                 Ok(Box::new(move |env| {
-                    let l = lhs(env);
-                    let r = rhs(env);
-                    apply(l, r)
+                    let l = lhs(env)?;
+                    let r = rhs(env)?;
+                    Ok(apply(l, r))
                 }))
             }
 
@@ -97,10 +102,10 @@ impl<'a> Interpreter<'a> {
                 let thn = self.compile(thn)?;
                 let els = self.compile(els)?;
 
-                Ok(Box::new(move |env| match cnd(env) {
+                Ok(Box::new(move |env| match cnd(env)? {
                     Value::Bool(true) => thn(env),
                     Value::Bool(false) => els(env),
-                    _ => panic!("Condition must be boolean"),
+                    _ => Err(eyre!("Condition must be boolean")),
                 }))
             }
 
@@ -110,10 +115,10 @@ impl<'a> Interpreter<'a> {
 
                 Ok(Box::new(move |env| {
                     let mut result = Value::Int(0);
-                    while cond(env).as_bool() {
-                        result = body(env);
+                    while cond(env)?.as_bool() {
+                        result = body(env)?;
                     }
-                    result
+                    Ok(result)
                 }))
             }
 
@@ -127,7 +132,7 @@ impl<'a> Interpreter<'a> {
                 Ok(Box::new(move |env| {
                     let mut values = FxHashMap::default();
                     for (param, arg) in def.args.iter().zip(&args) {
-                        values.insert(*param, arg(env));
+                        values.insert(*param, arg(env)?);
                     }
 
                     let mut call_env = Env::with_parent(env, values);
@@ -140,7 +145,7 @@ impl<'a> Interpreter<'a> {
 
     pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
         let closure = self.compile(expr)?;
-        Ok(closure(env))
+        closure(env)
     }
 }
 
