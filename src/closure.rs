@@ -4,12 +4,12 @@ use fxhash::FxHashMap;
 
 use crate::ast::*;
 
-type Closure = Box<dyn Fn(&mut Env) -> Value>;
+type Closure<'a> = Box<dyn Fn(&mut Env) -> Value + 'a>;
 
 #[derive(Default)]
 pub struct Env<'a> {
     values: FxHashMap<Sym, Value>,
-    cache: FxHashMap<Sym, Rc<Closure>>,
+    cache: FxHashMap<Sym, Rc<Closure<'a>>>,
     parent: Option<&'a Env<'a>>,
 }
 
@@ -100,20 +100,26 @@ impl Interpreter {
                 })
             }
 
+            Expr::While(cond, body) => {
+                let cond = self.compile(*cond);
+                let body = self.compile(*body);
+                Box::new(move |env| {
+                    let mut result = Value::Int(0);
+                    while cond(env).as_bool() {
+                        result = body(env);
+                    }
+                    result
+                })
+            }
+
             Expr::Call(sym, args) => {
                 let def = self.symbols.defs.get(&sym).unwrap().clone();
                 let compiled_args: Vec<_> = args.into_iter().map(|arg| self.compile(arg)).collect();
 
-                let syms = self.symbols.clone();
-                let body = def.body.clone();
+                // let syms = self.symbols.clone();
+                // let body = def.body.clone();
 
                 Box::new(move |env| {
-                    if env.cached(&sym).is_none() {
-                        let interpreter = Interpreter::new(syms.clone());
-                        let closure = interpreter.compile(body.clone());
-                        env.cache.insert(sym, Rc::new(closure));
-                    }
-
                     let mut values = FxHashMap::default();
                     for (param, arg) in def.args.iter().zip(&compiled_args) {
                         values.insert(*param, arg(env));
@@ -130,6 +136,13 @@ impl Interpreter {
     pub fn eval(&self, expr: Expr) -> Value {
         let closure = self.compile(expr);
         let mut env = Env::default();
+
+        for def in self.symbols.defs.values() {
+            let sym = def.sym;
+            let closure = self.compile(def.body.clone());
+            env.cache.insert(sym, Rc::new(closure));
+        }
+
         closure(&mut env)
     }
 }
@@ -145,7 +158,6 @@ pub fn eval() -> Result<(), String> {
 
     // Test fibonacci numbers 1 through 20
     for n in 1..=27 {
-        println!("Calculating fib({n})...");
         let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
 
         match interpreter.eval(expr) {

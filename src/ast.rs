@@ -61,6 +61,7 @@ pub enum Expr {
     BinOp(BinOp, Box<Expr>, Box<Expr>),
     Call(Sym, Vec<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
+    While(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

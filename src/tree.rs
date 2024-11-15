@@ -103,6 +103,14 @@ impl Interpreter {
                     _ => Err("Condition must evaluate to a boolean".to_string()),
                 }
             }
+
+            Expr::While(cond, body) => {
+                let mut result = Value::Int(0);
+                while self.eval(cond, env)?.as_bool() {
+                    result = self.eval(body, env)?;
+                }
+                Ok(result)
+            }
         }
     }
 }
@@ -119,7 +127,6 @@ pub fn eval() -> Result<(), String> {
 
     // Test fibonacci numbers 1 through 20
     for n in 1..=27 {
-        println!("Calculating fib({n})...");
         let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
 
         match interpreter.eval(&expr, &mut env) {
