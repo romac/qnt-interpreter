@@ -80,19 +80,21 @@ fn main_def(n: i64) -> Def {
 }
 
 fn main() -> Result<()> {
-    if std::env::args().len() != 2 {
-        return Err(eyre!("Usage: cargo run <tree|closure|vm>"));
+    if std::env::args().len() != 3 {
+        return Err(eyre!("Usage: cargo run <n> <tree|closure|vm|jit>"));
     }
 
+    let n: i64 = std::env::args().nth(1).unwrap().parse()?;
+
     let fib = fib_def();
-    let main = main_def(29);
+    let main = main_def(n);
     let main_sym = main.sym;
 
     let mut syms = SymbolTable::default();
     syms.define(fib);
     syms.define(main);
 
-    match std::env::args().nth(1).unwrap().as_str() {
+    match std::env::args().nth(2).unwrap().as_str() {
         "tree" => {
             let interpreter = tree::Interpreter::new(&syms);
             run(main_sym, |expr| interpreter.eval(&expr))
