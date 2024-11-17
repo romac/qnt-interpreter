@@ -2,10 +2,10 @@
 
 mod ast;
 mod closure;
+mod jit;
 mod str;
 mod tree;
 mod vm;
-mod wasm;
 
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
@@ -116,8 +116,8 @@ fn main() -> Result<()> {
             Ok(())
         }
 
-        "wasm" => {
-            let mut compiler = wasm::Compiler::new()?;
+        "jit" => {
+            let mut compiler = jit::Compiler::new()?;
             compiler.compile(&syms)?;
 
             let result = compiler.eval(main_sym)?;
