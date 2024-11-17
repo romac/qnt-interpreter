@@ -6,6 +6,7 @@ mod jit;
 mod str;
 mod tree;
 mod vm;
+mod wasm;
 
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
@@ -124,6 +125,15 @@ fn main() -> Result<()> {
 
             let result = compiler.eval(main_sym)?;
             println!("main() = {result}");
+
+            Ok(())
+        }
+
+        "wasm" => {
+            let compiler = wasm::WasmCompiler::new();
+            let output = compiler.compile(&syms);
+
+            println!("{output}");
 
             Ok(())
         }
