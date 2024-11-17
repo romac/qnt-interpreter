@@ -256,7 +256,8 @@ impl<'a> Compiler<'a> {
             defs: FxHashMap::default(),
         };
 
-        for def in self.symbol_table.defs.values() {
+        for sym in &self.symbol_table.syms {
+            let def = self.symbol_table.defs.get(sym).unwrap();
             self.compile_fn(def, &mut ctx)?;
         }
 

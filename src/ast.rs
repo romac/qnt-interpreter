@@ -18,7 +18,7 @@ impl fmt::Display for Sym {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Var {
     pub sym: Sym,
 }
@@ -38,6 +38,14 @@ impl fmt::Display for Var {
 #[derive(Clone, Debug, Default)]
 pub struct SymbolTable {
     pub defs: FxHashMap<Sym, Def>,
+    pub syms: Vec<Sym>,
+}
+
+impl SymbolTable {
+    pub fn define(&mut self, def: Def) {
+        self.syms.push(def.sym);
+        self.defs.insert(def.sym, def);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

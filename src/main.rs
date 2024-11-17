@@ -12,7 +12,7 @@ use color_eyre::Result;
 
 use crate::ast::*;
 
-fn fib() -> Def {
+fn fib_def() -> Def {
     let fib_sym = Sym {
         id: 1,
         name: "fib".into(),
@@ -60,26 +60,47 @@ fn fib() -> Def {
     }
 }
 
+fn main_def(n: i64) -> Def {
+    let main_sym = Sym {
+        id: 3,
+        name: "main".into(),
+    };
+
+    Def {
+        sym: main_sym,
+        args: vec![],
+        body: Expr::Call(
+            Sym {
+                id: 1,
+                name: "fib".into(),
+            },
+            vec![Expr::Lit(Lit::Int(n))],
+        ),
+    }
+}
+
 fn main() -> Result<()> {
     if std::env::args().len() != 2 {
         return Err(eyre!("Usage: cargo run <tree|closure|vm>"));
     }
 
-    let fib = fib();
-    let sym = fib.sym;
+    let fib = fib_def();
+    let main = main_def(29);
+    let main_sym = main.sym;
 
     let mut syms = SymbolTable::default();
-    syms.defs.insert(sym, fib);
+    syms.define(fib);
+    syms.define(main);
 
     match std::env::args().nth(1).unwrap().as_str() {
         "tree" => {
             let interpreter = tree::Interpreter::new(&syms);
-            run(sym, |expr| interpreter.eval(&expr))
+            run(main_sym, |expr| interpreter.eval(&expr))
         }
 
         "closure" => {
             let interpreter = closure::Interpreter::new(&syms);
-            run(sym, |expr| interpreter.eval(&expr))
+            run(main_sym, |expr| interpreter.eval(&expr))
         }
 
         "vm" => {
@@ -89,10 +110,18 @@ fn main() -> Result<()> {
             let mut vm = vm::VM::new(code, ctx.defs, &syms);
             // vm.print_code();
 
-            for n in 1..=27 {
-                let result = vm.call(sym, vec![Value::Int(n)])?;
-                println!("fib({n}) = {result:?}");
-            }
+            let result = vm.call(main_sym, vec![])?;
+            println!("main() = {result:?}");
+
+            Ok(())
+        }
+
+        "wasm" => {
+            let mut compiler = wasm::Compiler::new()?;
+            compiler.compile(&syms)?;
+
+            let result = compiler.eval(main_sym)?;
+            println!("main() = {result}");
 
             Ok(())
         }
@@ -102,14 +131,11 @@ fn main() -> Result<()> {
 }
 
 fn run(sym: Sym, mut eval: impl FnMut(Expr) -> Result<Value>) -> Result<()> {
-    // Test fibonacci numbers 1 through 27
-    for n in 1..=27 {
-        let expr = Expr::Call(sym, vec![Expr::Lit(Lit::Int(n))]);
+    let expr = Expr::Call(sym, vec![]);
 
-        match eval(expr)? {
-            Value::Int(result) => println!("fib({n}) = {result}"),
-            _ => return Err(eyre!("Expected integer result")),
-        }
+    match eval(expr)? {
+        Value::Int(result) => println!("main() = {result}"),
+        _ => return Err(eyre!("Expected integer result")),
     }
 
     Ok(())
