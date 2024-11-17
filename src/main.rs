@@ -4,6 +4,8 @@ mod ast;
 mod closure;
 mod str;
 mod tree;
+mod vm;
+mod wasm;
 
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
@@ -60,7 +62,7 @@ fn fib() -> Def {
 
 fn main() -> Result<()> {
     if std::env::args().len() != 2 {
-        return Err(eyre!("Usage: cargo run <tree|closure|bytecode>"));
+        return Err(eyre!("Usage: cargo run <tree|closure|vm>"));
     }
 
     let fib = fib();
@@ -78,6 +80,21 @@ fn main() -> Result<()> {
         "closure" => {
             let interpreter = closure::Interpreter::new(&syms);
             run(sym, |expr| interpreter.eval(&expr))
+        }
+
+        "vm" => {
+            let compiler = vm::Compiler::new(&syms);
+            let (code, ctx) = compiler.compile()?;
+
+            let mut vm = vm::VM::new(code, ctx.defs, &syms);
+            // vm.print_code();
+
+            for n in 1..=27 {
+                let result = vm.call(sym, vec![Value::Int(n)])?;
+                println!("fib({n}) = {result:?}");
+            }
+
+            Ok(())
         }
 
         _ => Err(eyre!("Invalid mode")),

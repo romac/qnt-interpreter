@@ -66,6 +66,10 @@ impl BinOp {
             BinOp::Eq => |a, b| Ok(Value::Bool(a == b)),
         }
     }
+
+    pub fn eval(&self, a: Value, b: Value) -> Result<Value> {
+        self.to_fn()(a, b)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
