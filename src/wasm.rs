@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::path::{Path, PathBuf};
 
 use fxhash::FxHashMap;
 
@@ -7,6 +8,7 @@ use color_eyre::Result;
 
 use crate::ast::*;
 
+#[derive(Default)]
 pub struct WasmCompiler {
     locals: FxHashMap<Sym, u32>,
     next_local: u32,
@@ -16,12 +18,7 @@ pub struct WasmCompiler {
 
 impl WasmCompiler {
     pub fn new() -> Self {
-        Self {
-            locals: FxHashMap::default(),
-            next_local: 0,
-            output: String::new(),
-            indent: 0,
-        }
+        Self::default()
     }
 
     fn write_indent(&mut self) {
@@ -35,7 +32,7 @@ impl WasmCompiler {
         writeln!(&mut self.output, "{}", s).unwrap();
     }
 
-    pub fn compile(mut self, symtab: &SymbolTable) -> String {
+    pub fn compile(mut self, symtab: &SymbolTable, main_sym: Sym) -> String {
         self.write_line("(module");
         self.indent += 1;
 
@@ -46,7 +43,7 @@ impl WasmCompiler {
             self.compile_def(def);
         }
 
-        self.write_line("(export \"_start\" (func $main))");
+        self.write_line(&format!("(export \"_start\" (func ${}))", main_sym.name));
 
         self.indent -= 1;
         self.write_line(")");
@@ -111,7 +108,7 @@ impl WasmCompiler {
                     BinOp::Eq => write!(&mut self.output, "i64.eq"),
                 }
                 .unwrap();
-                writeln!(&mut self.output, "").unwrap();
+                writeln!(&mut self.output).unwrap();
 
                 self.indent += 1;
                 self.compile_expr(lhs);
@@ -124,7 +121,7 @@ impl WasmCompiler {
                 self.write_indent();
                 write!(&mut self.output, "(call ${}", sym.name).unwrap();
                 if !args.is_empty() {
-                    writeln!(&mut self.output, "").unwrap();
+                    writeln!(&mut self.output).unwrap();
                     self.indent += 1;
                     for arg in args {
                         self.compile_expr(arg);
@@ -174,7 +171,7 @@ impl WasmCompiler {
     }
 }
 
-pub fn run(code: &str) -> Result<i64> {
+pub fn compile(code: &str) -> Result<PathBuf> {
     use std::process::Command;
 
     // Call `wat2wasm` to compile the WAT code to a binary Wasm module`
@@ -196,11 +193,17 @@ pub fn run(code: &str) -> Result<i64> {
         ));
     }
 
+    Ok(wasm_path)
+}
+
+pub fn execute(wasm_path: &Path) -> Result<i64> {
+    use std::process::Command;
+
     // Call `wasmtime` to run the Wasm module and capture its output.
     let output = Command::new("wasmtime")
         .arg("--invoke")
         .arg("_start")
-        .arg(&wasm_path)
+        .arg(wasm_path)
         .output()?;
 
     if !output.status.success() {
@@ -213,4 +216,14 @@ pub fn run(code: &str) -> Result<i64> {
     // Parse the output as an integer and return it.
     let text = String::from_utf8_lossy(&output.stdout);
     text.trim().parse().map_err(Into::into)
+}
+
+pub fn prepare(syms: &SymbolTable, main_sym: Sym) -> Result<PathBuf> {
+    let compiler = WasmCompiler::new();
+    let code = compiler.compile(syms, main_sym);
+    compile(&code)
+}
+
+pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
+    prepare(syms, main_sym).and_then(|path| execute(&path))
 }

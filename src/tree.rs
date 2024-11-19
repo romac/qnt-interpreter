@@ -131,3 +131,13 @@ impl<'a> Interpreter<'a> {
         self.eval_in(expr, &mut Env::new())
     }
 }
+
+pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
+    let interpreter = Interpreter::new(syms);
+    let expr = Expr::Call(main_sym, vec![]);
+
+    match interpreter.eval(&expr)? {
+        Value::Int(result) => Ok(result),
+        _ => Err(eyre!("Expected integer result")),
+    }
+}

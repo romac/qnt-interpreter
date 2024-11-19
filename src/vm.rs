@@ -374,3 +374,25 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 }
+
+pub fn prepare(syms: &SymbolTable) -> Result<VM> {
+    let compiler = Compiler::new(syms);
+    let (code, ctx) = compiler.compile()?;
+
+    let vm = VM::new(code, ctx.defs, syms);
+    // vm.print_code();
+    Ok(vm)
+}
+
+pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
+    let compiler = Compiler::new(syms);
+    let (code, ctx) = compiler.compile()?;
+
+    let mut vm = VM::new(code, ctx.defs, syms);
+    // vm.print_code();
+
+    match vm.call(main_sym, vec![])? {
+        Value::Int(result) => Ok(result),
+        _ => Err(eyre!("Expected integer result")),
+    }
+}

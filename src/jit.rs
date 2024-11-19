@@ -1,13 +1,12 @@
 use color_eyre::eyre::eyre;
+use color_eyre::Result;
 use cranelift::jit::{JITBuilder, JITModule};
 use cranelift::module::{FuncId, Linkage, Module};
+use cranelift::prelude::Value;
 use cranelift::prelude::*;
 use fxhash::FxHashMap;
 
-use color_eyre::Result;
-
 use crate::ast::*;
-use cranelift::prelude::Value;
 
 pub struct Compiler {
     module: JITModule,
@@ -228,4 +227,27 @@ impl Compiler {
             }
         }
     }
+}
+
+pub fn prepare(syms: &SymbolTable, main_sym: Sym) -> Result<fn() -> i64> {
+    let mut compiler = Compiler::new()?;
+    compiler.compile(syms)?;
+
+    let func_id = compiler
+        .function_ids
+        .get(&main_sym)
+        .copied()
+        .ok_or_else(|| eyre!("Undefined function"))?;
+
+    let code = compiler.module.get_finalized_function(func_id);
+
+    let jit_fn = unsafe { std::mem::transmute::<*const u8, fn() -> i64>(code) };
+
+    Ok(jit_fn)
+}
+
+pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
+    let mut compiler = Compiler::new()?;
+    compiler.compile(syms)?;
+    compiler.eval(main_sym)
 }

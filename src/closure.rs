@@ -190,3 +190,33 @@ impl<'a> Interpreter<'a> {
         closure(&mut env)
     }
 }
+
+pub fn prepare(
+    syms: &SymbolTable,
+    main_sym: Sym,
+) -> Result<Box<dyn FnMut() -> Result<Value> + '_>> {
+    let interpreter = Interpreter::new(syms);
+    let expr: &'static Expr = Box::leak(Box::new(Expr::Call(main_sym, vec![])));
+
+    let closure = interpreter.compile(expr)?;
+
+    let mut env = Env::new();
+
+    for def in interpreter.symbols.defs.values() {
+        let sym = def.sym;
+        let closure = interpreter.compile(&def.body)?;
+        env.cache.insert(sym, closure);
+    }
+
+    Ok(Box::new(move || closure(&mut env)))
+}
+
+pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
+    let interpreter = Interpreter::new(syms);
+    let expr = Expr::Call(main_sym, vec![]);
+
+    match interpreter.eval(&expr)? {
+        Value::Int(result) => Ok(result),
+        _ => Err(eyre!("Expected integer result")),
+    }
+}
