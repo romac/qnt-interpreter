@@ -98,12 +98,12 @@ fn main() -> Result<()> {
     match std::env::args().nth(2).unwrap().as_str() {
         "tree" => {
             let interpreter = tree::Interpreter::new(&syms);
-            run(main_sym, |expr| interpreter.eval(&expr))
+            run(main_sym, n, |expr| interpreter.eval(&expr))
         }
 
         "closure" => {
             let interpreter = closure::Interpreter::new(&syms);
-            run(main_sym, |expr| interpreter.eval(&expr))
+            run(main_sym, n, |expr| interpreter.eval(&expr))
         }
 
         "vm" => {
@@ -113,8 +113,10 @@ fn main() -> Result<()> {
             let mut vm = vm::VM::new(code, ctx.defs, &syms);
             // vm.print_code();
 
-            let result = vm.call(main_sym, vec![])?;
-            println!("main() = {result:?}");
+            match vm.call(main_sym, vec![])? {
+                Value::Int(result) => println!("fib({n}) = {result}"),
+                _ => return Err(eyre!("Expected integer result")),
+            }
 
             Ok(())
         }
@@ -124,16 +126,17 @@ fn main() -> Result<()> {
             compiler.compile(&syms)?;
 
             let result = compiler.eval(main_sym)?;
-            println!("main() = {result}");
+            println!("fib({n}) = {result}");
 
             Ok(())
         }
 
         "wasm" => {
             let compiler = wasm::WasmCompiler::new();
-            let output = compiler.compile(&syms);
+            let code = compiler.compile(&syms);
+            let output = wasm::run(&code)?;
 
-            println!("{output}");
+            println!("fib({n}) = {output}");
 
             Ok(())
         }
@@ -142,11 +145,11 @@ fn main() -> Result<()> {
     }
 }
 
-fn run(sym: Sym, mut eval: impl FnMut(Expr) -> Result<Value>) -> Result<()> {
+fn run(sym: Sym, n: i64, mut eval: impl FnMut(Expr) -> Result<Value>) -> Result<()> {
     let expr = Expr::Call(sym, vec![]);
 
     match eval(expr)? {
-        Value::Int(result) => println!("main() = {result}"),
+        Value::Int(result) => println!("fib({n}) = {result}"),
         _ => return Err(eyre!("Expected integer result")),
     }
 

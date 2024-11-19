@@ -2,6 +2,9 @@ use std::fmt::Write;
 
 use fxhash::FxHashMap;
 
+use color_eyre::eyre::eyre;
+use color_eyre::Result;
+
 use crate::ast::*;
 
 pub struct WasmCompiler {
@@ -169,4 +172,45 @@ impl WasmCompiler {
             }
         }
     }
+}
+
+pub fn run(code: &str) -> Result<i64> {
+    use std::process::Command;
+
+    // Call `wat2wasm` to compile the WAT code to a binary Wasm module`
+    // and write it to a temporary file.
+    let wat_path = std::env::temp_dir().join("code.wat");
+    let wasm_path = std::env::temp_dir().join("code.wasm");
+    std::fs::write(&wat_path, code)?;
+
+    let output = Command::new("wat2wasm")
+        .arg(&wat_path)
+        .arg("-o")
+        .arg(&wasm_path)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(eyre!(
+            "wat2wasm failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    // Call `wasmtime` to run the Wasm module and capture its output.
+    let output = Command::new("wasmtime")
+        .arg("--invoke")
+        .arg("_start")
+        .arg(&wasm_path)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(eyre!(
+            "wasmtime failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    // Parse the output as an integer and return it.
+    let text = String::from_utf8_lossy(&output.stdout);
+    text.trim().parse().map_err(Into::into)
 }
