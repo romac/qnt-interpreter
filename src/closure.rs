@@ -64,11 +64,11 @@ impl<'a> Interpreter<'a> {
         Self { symbols }
     }
 
-    pub fn compile<'e>(&self, expr: &'e Expr) -> Result<Closure<'e>>
+    pub fn compile<'e>(&self, expr: &ExprRef) -> Result<Closure<'e>>
     where
         'a: 'e,
     {
-        match expr {
+        match self.symbols.arena.get(*expr) {
             Expr::Lit(lit) => {
                 let val = match lit {
                     Lit::Int(n) => Value::Int(*n),
@@ -176,8 +176,9 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn eval(&self, expr: &Expr) -> Result<Value> {
-        let closure = self.compile(expr)?;
+    pub fn eval(&self, expr: Expr) -> Result<Value> {
+        let expr = self.symbols.arena.alloc(expr);
+        let closure = self.compile(&expr)?;
 
         let mut env = Env::new();
 
@@ -196,9 +197,8 @@ pub fn prepare(
     main_sym: Sym,
 ) -> Result<Box<dyn FnMut() -> Result<Value> + '_>> {
     let interpreter = Interpreter::new(syms);
-    let expr: &'static Expr = Box::leak(Box::new(Expr::Call(main_sym, vec![])));
-
-    let closure = interpreter.compile(expr)?;
+    let expr = syms.arena.alloc(Expr::Call(main_sym, vec![]));
+    let closure = interpreter.compile(&expr)?;
 
     let mut env = Env::new();
 
@@ -215,7 +215,7 @@ pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
     let interpreter = Interpreter::new(syms);
     let expr = Expr::Call(main_sym, vec![]);
 
-    match interpreter.eval(&expr)? {
+    match interpreter.eval(expr)? {
         Value::Int(result) => Ok(result),
         _ => Err(eyre!("Expected integer result")),
     }

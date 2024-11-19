@@ -32,15 +32,15 @@ impl WasmCompiler {
         writeln!(&mut self.output, "{}", s).unwrap();
     }
 
-    pub fn compile(mut self, symtab: &SymbolTable, main_sym: Sym) -> String {
+    pub fn compile(mut self, symbols: &SymbolTable, main_sym: Sym) -> String {
         self.write_line("(module");
         self.indent += 1;
 
         self.write_line("(memory 1)");
         self.write_line("(export \"memory\" (memory 0))");
 
-        for def in symtab.defs.values() {
-            self.compile_def(def);
+        for def in symbols.defs.values() {
+            self.compile_def(def, &symbols.arena);
         }
 
         self.write_line(&format!("(export \"_start\" (func ${}))", main_sym.name));
@@ -51,7 +51,7 @@ impl WasmCompiler {
         self.output
     }
 
-    fn compile_def(&mut self, def: &Def) {
+    fn compile_def(&mut self, def: &Def, arena: &ExprArena) {
         self.locals.clear();
         self.next_local = 0;
 
@@ -66,14 +66,14 @@ impl WasmCompiler {
         writeln!(&mut self.output, " (result i64)").unwrap();
 
         self.indent += 1;
-        self.compile_expr(&def.body);
+        self.compile_expr(&def.body, arena);
         self.indent -= 1;
 
         self.write_line(")");
     }
 
-    fn compile_expr(&mut self, expr: &Expr) {
-        match expr {
+    fn compile_expr(&mut self, expr: &ExprRef, arena: &ExprArena) {
+        match arena.get(*expr) {
             Expr::Var(var) => {
                 let local = self.locals[&var.sym];
                 self.write_line(&format!("(local.get $p{})", local));
@@ -89,12 +89,12 @@ impl WasmCompiler {
                 self.next_local += 1;
                 writeln!(&mut self.output).unwrap();
 
-                self.compile_expr(val);
-                self.compile_expr(body);
+                self.compile_expr(val, arena);
+                self.compile_expr(body, arena);
             }
             Expr::Block(exprs) => {
                 for expr in exprs {
-                    self.compile_expr(expr);
+                    self.compile_expr(expr, arena);
                 }
             }
             Expr::BinOp(op, lhs, rhs) => {
@@ -111,8 +111,8 @@ impl WasmCompiler {
                 writeln!(&mut self.output).unwrap();
 
                 self.indent += 1;
-                self.compile_expr(lhs);
-                self.compile_expr(rhs);
+                self.compile_expr(lhs, arena);
+                self.compile_expr(rhs, arena);
                 self.indent -= 1;
 
                 self.write_line(")");
@@ -124,7 +124,7 @@ impl WasmCompiler {
                     writeln!(&mut self.output).unwrap();
                     self.indent += 1;
                     for arg in args {
-                        self.compile_expr(arg);
+                        self.compile_expr(arg, arena);
                     }
                     self.indent -= 1;
                     self.write_line(")");
@@ -135,15 +135,15 @@ impl WasmCompiler {
             Expr::If(cond, then, else_) => {
                 self.write_line("(if (result i64)");
                 self.indent += 1;
-                self.compile_expr(cond);
+                self.compile_expr(cond, arena);
                 self.write_line("(then");
                 self.indent += 1;
-                self.compile_expr(then);
+                self.compile_expr(then, arena);
                 self.indent -= 1;
                 self.write_line(")");
                 self.write_line("(else");
                 self.indent += 1;
-                self.compile_expr(else_);
+                self.compile_expr(else_, arena);
                 self.indent -= 1;
                 self.write_line(")");
                 self.indent -= 1;
@@ -154,10 +154,10 @@ impl WasmCompiler {
                 self.indent += 1;
                 self.write_line("(if");
                 self.indent += 1;
-                self.compile_expr(cond);
+                self.compile_expr(cond, arena);
                 self.write_line("(then");
                 self.indent += 1;
-                self.compile_expr(body);
+                self.compile_expr(body, arena);
                 self.write_line("(br 1)");
                 self.indent -= 1;
                 self.write_line(")");

@@ -10,7 +10,7 @@ pub mod wasm;
 
 use crate::ast::*;
 
-pub fn fib_def() -> Def {
+pub fn fib_def(arena: &ExprArena) -> Def {
     let fib_sym = Sym {
         id: 1,
         name: "fib".into(),
@@ -25,40 +25,40 @@ pub fn fib_def() -> Def {
     Def {
         sym: fib_sym,
         args: vec![n_sym],
-        body: Expr::If(
+        body: arena.alloc(Expr::If(
             // if n < 2
-            Box::new(Expr::BinOp(
+            arena.alloc(Expr::BinOp(
                 BinOp::Lt,
-                Box::new(Expr::Var(Var::new(n_sym))),
-                Box::new(Expr::Lit(Lit::Int(2))),
+                arena.alloc(Expr::Var(Var::new(n_sym))),
+                arena.alloc(Expr::Lit(Lit::Int(2))),
             )),
             // then return n
-            Box::new(Expr::Var(Var::new(n_sym))),
+            arena.alloc(Expr::Var(Var::new(n_sym))),
             // else return fib(n-1) + fib(n-2)
-            Box::new(Expr::BinOp(
+            arena.alloc(Expr::BinOp(
                 BinOp::Add,
-                Box::new(Expr::Call(
+                arena.alloc(Expr::Call(
                     fib_sym,
-                    vec![Expr::BinOp(
+                    vec![arena.alloc(Expr::BinOp(
                         BinOp::Sub,
-                        Box::new(Expr::Var(Var::new(n_sym))),
-                        Box::new(Expr::Lit(Lit::Int(1))),
-                    )],
+                        arena.alloc(Expr::Var(Var::new(n_sym))),
+                        arena.alloc(Expr::Lit(Lit::Int(1))),
+                    ))],
                 )),
-                Box::new(Expr::Call(
+                arena.alloc(Expr::Call(
                     fib_sym,
-                    vec![Expr::BinOp(
+                    vec![arena.alloc(Expr::BinOp(
                         BinOp::Sub,
-                        Box::new(Expr::Var(Var::new(n_sym))),
-                        Box::new(Expr::Lit(Lit::Int(2))),
-                    )],
+                        arena.alloc(Expr::Var(Var::new(n_sym))),
+                        arena.alloc(Expr::Lit(Lit::Int(2))),
+                    ))],
                 )),
             )),
-        ),
+        )),
     }
 }
 
-pub fn main_def(n: i64) -> Def {
+pub fn main_def(n: i64, arena: &ExprArena) -> Def {
     let main_sym = Sym {
         id: 3,
         name: "main".into(),
@@ -67,12 +67,12 @@ pub fn main_def(n: i64) -> Def {
     Def {
         sym: main_sym,
         args: vec![],
-        body: Expr::Call(
+        body: arena.alloc(Expr::Call(
             Sym {
                 id: 1,
                 name: "fib".into(),
             },
-            vec![Expr::Lit(Lit::Int(n))],
-        ),
+            vec![arena.alloc(Expr::Lit(Lit::Int(n)))],
+        )),
     }
 }

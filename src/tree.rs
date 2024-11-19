@@ -52,8 +52,8 @@ impl<'a> Interpreter<'a> {
         Self { table }
     }
 
-    pub fn eval_in(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
-        match expr {
+    pub fn eval_in(&self, expr: &ExprRef, env: &mut Env) -> Result<Value> {
+        match self.table.arena.get(*expr) {
             Expr::Lit(lit) => Ok(lit.to_value()),
 
             Expr::Var(var) => env
@@ -127,8 +127,9 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn eval(&self, expr: &Expr) -> Result<Value> {
-        self.eval_in(expr, &mut Env::new())
+    pub fn eval(&self, expr: Expr) -> Result<Value> {
+        let expr = self.table.arena.alloc(expr);
+        self.eval_in(&expr, &mut Env::new())
     }
 }
 
@@ -136,7 +137,7 @@ pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
     let interpreter = Interpreter::new(syms);
     let expr = Expr::Call(main_sym, vec![]);
 
-    match interpreter.eval(&expr)? {
+    match interpreter.eval(expr)? {
         Value::Int(result) => Ok(result),
         _ => Err(eyre!("Expected integer result")),
     }

@@ -41,7 +41,7 @@ impl Compiler {
 
         for sym in &symbol_table.syms {
             let def = symbol_table.defs.get(sym).unwrap();
-            self.compile_function(def, &mut ctx, &mut builder_ctx)?;
+            self.compile_function(def, &mut ctx, &mut builder_ctx, &symbol_table.arena)?;
         }
 
         // Now that compilation is finished, we can clear out the context state.
@@ -73,6 +73,7 @@ impl Compiler {
         def: &Def,
         ctx: &mut codegen::Context,
         builder_ctx: &mut FunctionBuilderContext,
+        arena: &ExprArena,
     ) -> Result<FuncId> {
         let mut signature = self.module.make_signature();
 
@@ -106,7 +107,7 @@ impl Compiler {
         }
 
         // Compile body
-        let result = self.compile_expr(&mut builder, &def.body)?;
+        let result = self.compile_expr(&mut builder, arena, &def.body)?;
         builder.ins().return_(&[result]);
         builder.seal_all_blocks();
         builder.finalize();
@@ -118,8 +119,13 @@ impl Compiler {
         Ok(func_id)
     }
 
-    fn compile_expr(&mut self, builder: &mut FunctionBuilder, expr: &Expr) -> Result<Value> {
-        match expr {
+    fn compile_expr(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        arena: &ExprArena,
+        expr: &ExprRef,
+    ) -> Result<Value> {
+        match arena.get(*expr) {
             Expr::Var(var) => {
                 let variable = self
                     .variables
@@ -135,25 +141,25 @@ impl Compiler {
             },
 
             Expr::Let(sym, value, body) => {
-                let value = self.compile_expr(builder, value)?;
+                let value = self.compile_expr(builder, arena, value)?;
                 let var = Variable::new(0);
                 self.variables.insert(*sym, var);
                 builder.declare_var(var, types::I64);
                 builder.def_var(var, value);
-                self.compile_expr(builder, body)
+                self.compile_expr(builder, arena, body)
             }
 
             Expr::Block(exprs) => {
                 let mut result = builder.ins().iconst(types::I64, 0);
                 for expr in exprs {
-                    result = self.compile_expr(builder, expr)?;
+                    result = self.compile_expr(builder, arena, expr)?;
                 }
                 Ok(result)
             }
 
             Expr::BinOp(op, left, right) => {
-                let lhs = self.compile_expr(builder, left)?;
-                let rhs = self.compile_expr(builder, right)?;
+                let lhs = self.compile_expr(builder, arena, left)?;
+                let rhs = self.compile_expr(builder, arena, right)?;
 
                 match op {
                     BinOp::Add => Ok(builder.ins().iadd(lhs, rhs)),
@@ -164,7 +170,7 @@ impl Compiler {
                 }
             }
             Expr::If(cond, then_expr, else_expr) => {
-                let cond_val = self.compile_expr(builder, cond)?;
+                let cond_val = self.compile_expr(builder, arena, cond)?;
 
                 let then_block = builder.create_block();
                 let else_block = builder.create_block();
@@ -177,11 +183,11 @@ impl Compiler {
                     .brif(cond_val, then_block, &[], else_block, &[]);
 
                 builder.switch_to_block(then_block);
-                let then_val = self.compile_expr(builder, then_expr)?;
+                let then_val = self.compile_expr(builder, arena, then_expr)?;
                 builder.ins().jump(merge_block, &[then_val]);
 
                 builder.switch_to_block(else_block);
-                let else_val = self.compile_expr(builder, else_expr)?;
+                let else_val = self.compile_expr(builder, arena, else_expr)?;
                 builder.ins().jump(merge_block, &[else_val]);
 
                 builder.switch_to_block(merge_block);
@@ -196,13 +202,13 @@ impl Compiler {
                 builder.ins().jump(header_block, &[]);
                 builder.switch_to_block(header_block);
 
-                let cond_val = self.compile_expr(builder, cond)?;
+                let cond_val = self.compile_expr(builder, arena, cond)?;
                 builder
                     .ins()
                     .brif(cond_val, body_block, &[], exit_block, &[]);
 
                 builder.switch_to_block(body_block);
-                self.compile_expr(builder, body)?;
+                self.compile_expr(builder, arena, body)?;
                 builder.ins().jump(header_block, &[]);
 
                 builder.switch_to_block(exit_block);
@@ -218,7 +224,7 @@ impl Compiler {
 
                 let mut arg_values = Vec::new();
                 for arg in args {
-                    arg_values.push(self.compile_expr(builder, arg)?);
+                    arg_values.push(self.compile_expr(builder, arena, arg)?);
                 }
 
                 let call = self.module.declare_func_in_func(func_id, builder.func);

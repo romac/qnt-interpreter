@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::fmt;
 
 use color_eyre::eyre::bail;
@@ -5,6 +6,54 @@ use color_eyre::Result;
 use fxhash::FxHashMap;
 
 pub use crate::str::Str;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ExprRef(usize);
+
+impl ExprRef {
+    #[inline(always)]
+    pub const fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self.0
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ExprArena {
+    exprs: UnsafeCell<Vec<Expr>>,
+}
+
+impl ExprArena {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[allow(clippy::mut_from_ref)]
+    fn exprs(&self) -> &mut Vec<Expr> {
+        unsafe { &mut *self.exprs.get() }
+    }
+
+    #[inline(always)]
+    pub fn alloc(&self, expr: Expr) -> ExprRef {
+        let index = self.exprs().len();
+        self.exprs().push(expr);
+        ExprRef::new(index)
+    }
+
+    #[inline(always)]
+    pub fn get(&self, ref_: ExprRef) -> &Expr {
+        &self.exprs()[ref_.index()]
+    }
+
+    #[inline(always)]
+    pub fn get_mut(&mut self, ref_: ExprRef) -> &mut Expr {
+        &mut self.exprs()[ref_.index()]
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Sym {
@@ -35,13 +84,22 @@ impl fmt::Display for Var {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug)]
 pub struct SymbolTable {
     pub defs: FxHashMap<Sym, Def>,
     pub syms: Vec<Sym>,
+    pub arena: ExprArena,
 }
 
 impl SymbolTable {
+    pub fn new(arena: ExprArena) -> Self {
+        Self {
+            defs: FxHashMap::default(),
+            syms: Vec::new(),
+            arena,
+        }
+    }
+
     pub fn define(&mut self, def: Def) {
         self.syms.push(def.sym);
         self.defs.insert(def.sym, def);
@@ -52,7 +110,7 @@ impl SymbolTable {
 pub struct Def {
     pub sym: Sym,
     pub args: Vec<Sym>,
-    pub body: Expr,
+    pub body: ExprRef,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -84,12 +142,12 @@ impl BinOp {
 pub enum Expr {
     Var(Var),
     Lit(Lit),
-    Let(Sym, Box<Expr>, Box<Expr>),
-    BinOp(BinOp, Box<Expr>, Box<Expr>),
-    Call(Sym, Vec<Expr>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
-    While(Box<Expr>, Box<Expr>),
-    Block(Vec<Expr>),
+    Let(Sym, ExprRef, ExprRef),
+    BinOp(BinOp, ExprRef, ExprRef),
+    Call(Sym, Vec<ExprRef>),
+    If(ExprRef, ExprRef, ExprRef),
+    While(ExprRef, ExprRef),
+    Block(Vec<ExprRef>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

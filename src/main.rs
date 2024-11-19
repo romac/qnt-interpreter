@@ -10,11 +10,13 @@ fn main() -> Result<()> {
 
     let n: i64 = std::env::args().nth(1).unwrap().parse()?;
 
-    let fib = fib_def();
-    let main = main_def(n);
+    let arena = ExprArena::new();
+
+    let fib = fib_def(&arena);
+    let main = main_def(n, &arena);
     let main_sym = main.sym;
 
-    let mut syms = SymbolTable::default();
+    let mut syms = SymbolTable::new(arena);
     syms.define(fib);
     syms.define(main);
 

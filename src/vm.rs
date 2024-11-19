@@ -281,8 +281,8 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    pub fn compile_expr(&mut self, expr: &Expr, ctx: &mut Context) -> Result<()> {
-        match expr {
+    pub fn compile_expr(&mut self, expr: &ExprRef, ctx: &mut Context) -> Result<()> {
+        match self.symbol_table.arena.get(*expr) {
             Expr::Lit(lit) => {
                 self.code.push(Instr::Push(lit.to_value()));
             }
