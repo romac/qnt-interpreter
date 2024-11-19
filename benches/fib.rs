@@ -3,7 +3,7 @@ use qnt_interpreter::ast::SymbolTable;
 use qnt_interpreter::{closure, fib_def, jit, main_def, tree, vm, wasm};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let n = 23;
+    let n = 27;
 
     let fib = fib_def();
     let main = main_def(n);
@@ -12,13 +12,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let mut syms = SymbolTable::default();
     syms.define(fib);
     syms.define(main);
+    let syms = black_box(syms);
 
     c.bench_function(&format!("tree: fib({n})"), |b| {
-        b.iter(|| tree::run(black_box(&syms), main_sym))
+        b.iter(|| tree::run(&syms, main_sym))
     });
 
     c.bench_function(&format!("closure: fib({n})"), |b| {
-        let closure = |_| closure::prepare(&syms, main_sym).unwrap();
+        let closure = |_| closure::prepare(&syms, black_box(main_sym)).unwrap();
         b.iter(|| closure(black_box(n)))
     });
 
