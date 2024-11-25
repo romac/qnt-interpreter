@@ -7,6 +7,15 @@ It is currently extremely limited, in order to ease the implementation
 of the multiple interpreters, and should eventually be extended with
 more interesting data types and operations, eg. sets, records, etc.
 
+## Techniques implemented
+
+- [Tree-walking](./src/tree.rs)
+- [Closure](./src/closure.rs)
+- [VM](./src/vm.rs)
+- [JIT](./src/jit.rs)
+- [WASM](./src/wasm.rs)
+
+
 ## Usage
 
 Compute the nth fibonacci number with a given interpreter:
@@ -26,14 +35,6 @@ Run the [benchmarks](./benches/fib.rs) with
 ```
 $ cargo bench
 ```
-
-## Techniques implemented
-
-- [Tree-walking](./src/tree.rs)
-- [Closure](./src/closure.rs)
-- [VM](./src/vm.rs)
-- [JIT](./src/jit.rs)
-- [WASM](./src/wasm.rs)
 
 ## License
 
