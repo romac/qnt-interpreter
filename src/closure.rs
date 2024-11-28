@@ -1,6 +1,6 @@
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 
 use crate::ast::*;
 
@@ -73,7 +73,23 @@ impl<'a> Interpreter<'a> {
                 let val = match lit {
                     Lit::Int(n) => Value::Int(*n),
                     Lit::Bool(b) => Value::Bool(*b),
+                    Lit::Set(elems) => {
+                        let elems = elems
+                            .iter()
+                            .map(|elem| self.compile(elem))
+                            .collect::<Result<Vec<_>>>()?;
+
+                        return Ok(Box::new(move |env| {
+                            let elems = elems
+                                .iter()
+                                .map(|elem| elem(env))
+                                .collect::<Result<FxHashSet<_>>>()?;
+
+                            Ok(Value::Set(elems))
+                        }));
+                    }
                 };
+
                 Ok(Box::new(move |_| Ok(val.clone())))
             }
 
@@ -171,6 +187,39 @@ impl<'a> Interpreter<'a> {
                         .ok_or_else(|| eyre!("Cached function not found: {sym}"))?;
 
                     body(&mut env.nested(values))
+                }))
+            }
+
+            Expr::SetAdd(set, elem) => {
+                let set = self.compile(set)?;
+                let elem = self.compile(elem)?;
+
+                Ok(Box::new(move |env| {
+                    let mut set = set(env)?;
+                    let elem = elem(env)?;
+
+                    match &mut set {
+                        Value::Set(elems) => {
+                            elems.insert(elem);
+                            Ok(Value::Set(elems.clone()))
+                        }
+                        _ => Err(eyre!("Expected set")),
+                    }
+                }))
+            }
+
+            Expr::SetContains(set, elem) => {
+                let set = self.compile(set)?;
+                let elem = self.compile(elem)?;
+
+                Ok(Box::new(move |env| {
+                    let set = set(env)?;
+                    let elem = elem(env)?;
+
+                    match &set {
+                        Value::Set(elems) => Ok(Value::Bool(elems.contains(&elem))),
+                        _ => Err(eyre!("Expected set")),
+                    }
                 }))
             }
         }

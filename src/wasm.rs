@@ -80,6 +80,7 @@ impl WasmCompiler {
             Expr::Lit(lit) => match lit {
                 Lit::Int(n) => self.write_line(&format!("(i64.const {})", n)),
                 Lit::Bool(b) => self.write_line(&format!("(i64.const {})", if *b { 1 } else { 0 })),
+                Lit::Set(_) => unimplemented!(),
             },
             Expr::Let(sym, val, body) => {
                 self.write_indent();
@@ -166,6 +167,8 @@ impl WasmCompiler {
                 self.write_line(")");
                 self.write_line("(i64.const 0)");
             }
+            Expr::SetAdd(_, _) => unimplemented!(),
+            Expr::SetContains(_, _) => unimplemented!(),
         }
     }
 }

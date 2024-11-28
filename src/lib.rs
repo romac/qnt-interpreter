@@ -1,11 +1,21 @@
 #![allow(dead_code)]
 
 pub mod ast;
-pub mod closure;
-pub mod jit;
 pub mod str;
+
+#[cfg(feature = "closure")]
+pub mod closure;
+
+#[cfg(feature = "jit")]
+pub mod jit;
+
+#[cfg(feature = "tree")]
 pub mod tree;
+
+#[cfg(feature = "vm")]
 pub mod vm;
+
+#[cfg(feature = "wasm")]
 pub mod wasm;
 
 use crate::ast::*;

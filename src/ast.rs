@@ -1,8 +1,9 @@
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use color_eyre::eyre::bail;
 use color_eyre::Result;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 
 pub use crate::str::Str;
 
@@ -116,24 +117,22 @@ pub enum Expr {
     Let(TypedSym, Box<Expr>, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
     Call(Sym, Vec<Expr>),
+
+    // Control flow
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     While(Box<Expr>, Box<Expr>),
     Block(Vec<Expr>),
+
+    // Set ops
+    SetAdd(Box<Expr>, Box<Expr>),
+    SetContains(Box<Expr>, Box<Expr>),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Lit {
     Int(i64),
     Bool(bool),
-}
-
-impl Lit {
-    pub fn to_value(self) -> Value {
-        match self {
-            Lit::Int(n) => Value::Int(n),
-            Lit::Bool(b) => Value::Bool(b),
-        }
-    }
+    Set(Vec<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,6 +140,25 @@ pub enum Value {
     Undefined,
     Int(i64),
     Bool(bool),
+    Set(FxHashSet<Value>),
+}
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let discr = core::mem::discriminant(self);
+        discr.hash(state);
+
+        match self {
+            Value::Undefined => (),
+            Value::Int(n) => n.hash(state),
+            Value::Bool(b) => b.hash(state),
+            Value::Set(set) => {
+                for elem in set {
+                    elem.hash(state);
+                }
+            }
+        }
+    }
 }
 
 impl Value {
@@ -155,6 +173,20 @@ impl Value {
         match self {
             Value::Bool(b) => Ok(*b),
             _ => bail!("Expected boolean"),
+        }
+    }
+
+    pub fn as_set(&self) -> Result<&FxHashSet<Value>> {
+        match self {
+            Value::Set(set) => Ok(set),
+            _ => bail!("Expected set"),
+        }
+    }
+
+    pub fn to_set(self) -> Result<FxHashSet<Value>> {
+        match self {
+            Value::Set(set) => Ok(set),
+            _ => bail!("Expected set"),
         }
     }
 }

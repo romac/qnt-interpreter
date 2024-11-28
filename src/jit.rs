@@ -132,6 +132,7 @@ impl Compiler {
             Expr::Lit(lit) => match lit {
                 Lit::Int(n) => Ok(builder.ins().iconst(types::I64, *n)),
                 Lit::Bool(b) => Ok(builder.ins().iconst(types::I64, *b as i64)),
+                Lit::Set(_) => unimplemented!(),
             },
 
             Expr::Let(sym, value, body) => {
@@ -225,6 +226,9 @@ impl Compiler {
                 let inst = builder.ins().call(call, &arg_values);
                 Ok(builder.inst_results(inst)[0])
             }
+
+            Expr::SetAdd(_, _) => unimplemented!(),
+            Expr::SetContains(_, _) => unimplemented!(),
         }
     }
 }

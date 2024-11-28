@@ -1,6 +1,6 @@
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 
 use crate::ast::*;
 
@@ -54,7 +54,18 @@ impl<'a> Interpreter<'a> {
 
     pub fn eval_in(&self, expr: &Expr, env: &mut Env) -> Result<Value> {
         match expr {
-            Expr::Lit(lit) => Ok(lit.to_value()),
+            Expr::Lit(lit) => match lit {
+                Lit::Int(n) => Ok(Value::Int(*n)),
+                Lit::Bool(b) => Ok(Value::Bool(*b)),
+                Lit::Set(elems) => {
+                    let elems = elems
+                        .iter()
+                        .map(|elem| self.eval_in(elem, env))
+                        .collect::<Result<FxHashSet<_>>>()?;
+
+                    Ok(Value::Set(elems))
+                }
+            },
 
             Expr::Var(var) => env
                 .get(&var.sym)
@@ -123,6 +134,18 @@ impl<'a> Interpreter<'a> {
                     result = self.eval_in(body, env)?;
                 }
                 Ok(result)
+            }
+
+            Expr::SetAdd(set, elem) => {
+                let mut set = self.eval_in(set, env)?.to_set()?;
+                set.insert(self.eval_in(elem, env)?);
+                Ok(Value::Set(set))
+            }
+
+            Expr::SetContains(set, elem) => {
+                let set = self.eval_in(set, env)?.to_set()?;
+                let contains = set.contains(&self.eval_in(elem, env)?);
+                Ok(Value::Bool(contains))
             }
         }
     }

@@ -283,8 +283,16 @@ impl<'a> Compiler<'a> {
 
     pub fn compile_expr(&mut self, expr: &Expr, ctx: &mut Context) -> Result<()> {
         match expr {
-            Expr::Lit(lit) => {
-                self.code.push(Instr::Push(lit.to_value()));
+            Expr::Lit(Lit::Bool(b)) => {
+                self.code.push(Instr::Push(Value::Bool(*b)));
+            }
+
+            Expr::Lit(Lit::Int(n)) => {
+                self.code.push(Instr::Push(Value::Int(*n)));
+            }
+
+            Expr::Lit(Lit::Set(_)) => {
+                unimplemented!()
             }
 
             Expr::Var(var) => {
@@ -369,6 +377,8 @@ impl<'a> Compiler<'a> {
                     self.compile_expr(expr, ctx)?;
                 }
             }
+            Expr::SetAdd(_, _) => unimplemented!(),
+            Expr::SetContains(_, _) => unimplemented!(),
         }
 
         Ok(())
