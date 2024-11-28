@@ -100,7 +100,7 @@ impl Compiler {
         // Create variables for parameters
         for (i, arg) in def.args.iter().enumerate() {
             let var = Variable::new(i);
-            self.variables.insert(*arg, var);
+            self.variables.insert(arg.sym, var);
             builder.declare_var(var, types::I64);
             builder.def_var(var, builder.block_params(entry_block)[i]);
         }
@@ -137,7 +137,7 @@ impl Compiler {
             Expr::Let(sym, value, body) => {
                 let value = self.compile_expr(builder, value)?;
                 let var = Variable::new(0);
-                self.variables.insert(*sym, var);
+                self.variables.insert(sym.sym, var);
                 builder.declare_var(var, types::I64);
                 builder.def_var(var, value);
                 self.compile_expr(builder, body)

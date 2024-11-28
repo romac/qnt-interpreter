@@ -24,7 +24,8 @@ pub fn fib_def() -> Def {
     // Create the fibonacci function definition
     Def {
         sym: fib_sym,
-        args: vec![n_sym],
+        args: vec![n_sym.typed(Type::Int)],
+        return_type: Type::Int,
         body: Expr::If(
             // if n < 2
             Box::new(Expr::BinOp(
@@ -67,6 +68,7 @@ pub fn main_def(n: i64) -> Def {
     Def {
         sym: main_sym,
         args: vec![],
+        return_type: Type::Int,
         body: Expr::Call(
             Sym {
                 id: 1,

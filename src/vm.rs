@@ -271,7 +271,7 @@ impl<'a> Compiler<'a> {
         ctx.locals.clear();
         for arg in &def.args {
             let index = ctx.locals.len();
-            ctx.locals.insert(*arg, index);
+            ctx.locals.insert(arg.sym, index);
         }
 
         self.compile_expr(&def.body, ctx)?;
@@ -298,7 +298,7 @@ impl<'a> Compiler<'a> {
                 self.compile_expr(value, ctx)?;
 
                 let index = ctx.locals.len();
-                ctx.locals.insert(*sym, index);
+                ctx.locals.insert(sym.sym, index);
 
                 self.code.push(Instr::Store(index));
 

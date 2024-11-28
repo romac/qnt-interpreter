@@ -63,7 +63,7 @@ impl<'a> Interpreter<'a> {
 
             Expr::Let(sym, value, body) => {
                 let value = self.eval_in(value, env)?;
-                self.eval_in(body, &mut env.with(*sym, value))
+                self.eval_in(body, &mut env.with(sym.sym, value))
             }
 
             Expr::Block(exprs) => {
@@ -101,7 +101,7 @@ impl<'a> Interpreter<'a> {
                 let mut values = FxHashMap::default();
                 for (param, arg) in def.args.iter().zip(args) {
                     let value = self.eval_in(arg, env)?;
-                    values.insert(*param, value);
+                    values.insert(param.sym, value);
                 }
 
                 // Evaluate function body in new environment

@@ -59,7 +59,7 @@ impl WasmCompiler {
 
         for arg in &def.args {
             write!(&mut self.output, " (param $p{} i64)", self.next_local).unwrap();
-            self.locals.insert(*arg, self.next_local);
+            self.locals.insert(arg.sym, self.next_local);
             self.next_local += 1;
         }
         writeln!(&mut self.output, " (result i64)").unwrap();
@@ -84,7 +84,7 @@ impl WasmCompiler {
             Expr::Let(sym, val, body) => {
                 self.write_indent();
                 write!(&mut self.output, "(local $l{} i64)", self.next_local).unwrap();
-                self.locals.insert(*sym, self.next_local);
+                self.locals.insert(sym.sym, self.next_local);
                 self.next_local += 1;
                 writeln!(&mut self.output).unwrap();
 

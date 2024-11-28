@@ -12,6 +12,16 @@ pub struct Sym {
     pub name: Str,
 }
 
+impl Sym {
+    pub fn new(id: u32, name: Str) -> Self {
+        Self { id, name }
+    }
+
+    pub fn typed(self, ty: Type) -> TypedSym {
+        TypedSym { sym: self, ty }
+    }
+}
+
 impl fmt::Display for Sym {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}${}", self.name, self.id)
@@ -35,6 +45,24 @@ impl fmt::Display for Var {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Type {
+    Int,
+    Bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypedSym {
+    pub sym: Sym,
+    pub ty: Type,
+}
+
+impl TypedSym {
+    pub fn new(sym: Sym, ty: Type) -> Self {
+        Self { sym, ty }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SymbolTable {
     pub defs: FxHashMap<Sym, Def>,
@@ -51,8 +79,9 @@ impl SymbolTable {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Def {
     pub sym: Sym,
-    pub args: Vec<Sym>,
+    pub args: Vec<TypedSym>,
     pub body: Expr,
+    pub return_type: Type,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -84,7 +113,7 @@ impl BinOp {
 pub enum Expr {
     Var(Var),
     Lit(Lit),
-    Let(Sym, Box<Expr>, Box<Expr>),
+    Let(TypedSym, Box<Expr>, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
     Call(Sym, Vec<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),

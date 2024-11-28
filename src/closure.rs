@@ -92,7 +92,7 @@ impl<'a> Interpreter<'a> {
 
                 Ok(Box::new(move |env| {
                     let value = value(env)?;
-                    body(&mut env.with(*sym, value))
+                    body(&mut env.with(sym.sym, value))
                 }))
             }
 
@@ -163,7 +163,7 @@ impl<'a> Interpreter<'a> {
                 Ok(Box::new(move |env| {
                     let mut values = FxHashMap::default();
                     for (param, arg) in def.args.iter().zip(&args) {
-                        values.insert(*param, arg(env)?);
+                        values.insert(param.sym, arg(env)?);
                     }
 
                     let body = env
