@@ -231,6 +231,10 @@ impl Compiler {
             Expr::SetContains(_, _) => unimplemented!(),
         }
     }
+
+    fn destroy(self) {
+        unsafe { self.module.free_memory() }
+    }
 }
 
 pub fn prepare(syms: &SymbolTable, main_sym: Sym) -> Result<fn() -> i64> {
@@ -253,5 +257,7 @@ pub fn prepare(syms: &SymbolTable, main_sym: Sym) -> Result<fn() -> i64> {
 pub fn run(syms: &SymbolTable, main_sym: Sym) -> Result<i64> {
     let mut compiler = Compiler::new()?;
     compiler.compile(syms)?;
-    compiler.eval(main_sym)
+    let res = compiler.eval(main_sym);
+    compiler.destroy();
+    res
 }

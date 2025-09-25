@@ -1,7 +1,7 @@
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 
-use qnt_interpreter::{ast::*, closure, fib_def, jit, main_def, tree, vm, wasm};
+use qnt_interpreter::{ast::*, closure, fib_def, jit, main_def, pure, tree, vm, vm_optimal, wasm};
 
 fn main() -> Result<()> {
     if std::env::args().len() != 3 {
@@ -22,8 +22,18 @@ fn main() -> Result<()> {
         "tree" => tree::run,
         "closure" => closure::run,
         "vm" => vm::run,
+        "vm_optimal" => {
+            let result = vm_optimal::run(syms, main_sym)?;
+            println!("fib(n) = {result}");
+            return Ok(());
+        }
         "jit" => jit::run,
         "wasm" => wasm::run,
+        "pure" => {
+            let result = pure(n)?;
+            println!("fib(n) = {result}");
+            return Ok(());
+        }
         _ => return Err(eyre!("Invalid mode")),
     };
 

@@ -15,10 +15,14 @@ pub mod tree;
 #[cfg(feature = "vm")]
 pub mod vm;
 
+#[cfg(feature = "vm")]
+pub mod vm_optimal;
+
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
 use crate::ast::*;
+use color_eyre::Result;
 
 pub fn fib_def() -> Def {
     let fib_sym = Sym {
@@ -86,5 +90,13 @@ pub fn main_def(n: i64) -> Def {
             },
             vec![Expr::Lit(Lit::Int(n))],
         ),
+    }
+}
+
+pub fn pure(n: i64) -> Result<i64> {
+    if n < 2 {
+        Ok(n)
+    } else {
+        Ok(pure(n - 1)? + pure(n - 2)?)
     }
 }

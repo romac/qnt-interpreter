@@ -47,7 +47,7 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub fn cached(&self, name: &Sym) -> Option<&Closure> {
+    pub fn cached(&self, name: &Sym) -> Option<&Closure<'_>> {
         match self.cache.get(name) {
             Some(closure) => Some(closure),
             None => self.parent.as_ref().and_then(|p| p.cached(name)),

@@ -108,6 +108,16 @@ impl BinOp {
     pub fn eval(&self, a: Value, b: Value) -> Result<Value> {
         self.to_fn()(a, b)
     }
+
+    pub fn eval_inline(&self, a: &Value, b: &Value) -> Result<Value> {
+        match self {
+            BinOp::Add => Ok(Value::Int(a.as_int()? + b.as_int()?)),
+            BinOp::Sub => Ok(Value::Int(a.as_int()? - b.as_int()?)),
+            BinOp::Mul => Ok(Value::Int(a.as_int()? * b.as_int()?)),
+            BinOp::Lt => Ok(Value::Bool(a.as_int()? < b.as_int()?)),
+            BinOp::Eq => Ok(Value::Bool(a == b)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
