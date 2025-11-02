@@ -385,7 +385,7 @@ impl<'a> Compiler<'a> {
     }
 }
 
-pub fn prepare(syms: &SymbolTable) -> Result<VM> {
+pub fn prepare(syms: &SymbolTable) -> Result<VM<'_>> {
     let compiler = Compiler::new(syms);
     let (code, ctx) = compiler.compile()?;
 

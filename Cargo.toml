@@ -25,3 +25,7 @@ harness = false
 
 [profile.release]
 lto = true
+
+[profile.release-debug]
+inherits = "release"
+debug = true
